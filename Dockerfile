@@ -1,19 +1,30 @@
-# Use Python 3.11 slim image for smaller size
-FROM python:3.11-slim
+# Use a Python base image that includes build tools
+FROM python:3.11
 
 # Set working directory
 WORKDIR /app
 
-# Install system dependencies
+# Install system dependencies and Node.js
 RUN apt-get update && apt-get install -y \
-    # Required for building some Python packages
-    gcc \
     # Git for repository operations
     git \
     # Process management utilities
     procps \
+    # curl for downloading
+    curl \
     # Clean up apt cache to reduce image size
     && rm -rf /var/lib/apt/lists/*
+
+# Install Node.js 20.x
+RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - && \
+    apt-get install -y nodejs && \
+    rm -rf /var/lib/apt/lists/*
+
+# Install Claude Code CLI globally using correct package name
+RUN npm install -g @anthropic-ai/claude-code-cli
+
+# Clone the target repository that Claude Phone will operate on
+RUN git clone https://github.com/houseworthe/davis.git /app/davis
 
 # Copy requirements first for better caching
 COPY requirements.txt .
