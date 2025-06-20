@@ -31,11 +31,43 @@ We welcome pull requests! To ensure a smooth process, please follow these steps:
 
 ## Development Setup
 
+### Backend Development
+
 1.  Clone the repository: `git clone https://github.com/your-username/claude-phone.git`
 2.  Create a virtual environment: `python -m venv venv`
-3.  Activate it: `source venv/bin/activate`
+3.  Activate it: `source venv/bin/activate` (Windows: `venv\Scripts\activate`)
 4.  Install dependencies: `pip install -r requirements.txt`
-5.  Set up your `.env` file from `.env.example`.
+5.  Set up your `.env` file from `.env.example`:
+    ```bash
+    cp .env.example .env
+    # Edit .env with your preferred credentials
+    ```
+6.  Run the development server: `uvicorn app.main:app --reload`
+
+### Frontend Development
+
+The frontend is a single `static/index.html` file using xterm.js. To modify:
+
+1.  Edit `static/index.html` directly
+2.  Test changes by refreshing your browser
+3.  Ensure the terminal properly connects to the WebSocket endpoint
+
+### Testing with Docker
+
+```bash
+# Build the Docker image
+docker build -t claude-phone-dev .
+
+# Run with your .env file
+docker run -p 8000:8000 --env-file .env claude-phone-dev
+```
+
+### Code Style
+
+- **Python**: Follow PEP 8 conventions
+- **JavaScript**: Use modern ES6+ syntax
+- **HTML/CSS**: Keep it clean and semantic
+- **Comments**: Write clear, concise comments for complex logic
 
 ## Code of Conduct
 

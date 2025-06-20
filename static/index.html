@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Claude Phone Terminal</title>
+    
+    <!-- xterm.js CSS -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/xterm@5.3.0/css/xterm.css" />
+    
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background-color: #1e1e1e;
+            color: #ffffff;
+            overflow: hidden;
+        }
+        
+        #header {
+            background-color: #2d2d2d;
+            padding: 10px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        }
+        
+        #header h1 {
+            font-size: 20px;
+            font-weight: 500;
+            color: #61dafb;
+        }
+        
+        #status {
+            font-size: 14px;
+            color: #888;
+        }
+        
+        #status.connected {
+            color: #4caf50;
+        }
+        
+        #status.disconnected {
+            color: #f44336;
+        }
+        
+        #terminal-container {
+            width: 100%;
+            height: calc(100vh - 50px);
+            background-color: #000000;
+            padding: 10px;
+        }
+        
+        #terminal {
+            width: 100%;
+            height: 100%;
+        }
+        
+        @media (max-width: 768px) {
+            #header {
+                padding: 8px 15px;
+            }
+            
+            #header h1 {
+                font-size: 18px;
+            }
+            
+            #terminal-container {
+                padding: 5px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div id="header">
+        <h1>Claude Phone 📱</h1>
+        <div id="status">Connecting...</div>
+    </div>
+    
+    <div id="terminal-container">
+        <div id="terminal"></div>
+    </div>
+    
+    <!-- xterm.js -->
+    <script src="https://cdn.jsdelivr.net/npm/xterm@5.3.0/lib/xterm.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/xterm-addon-fit@0.8.0/lib/xterm-addon-fit.js"></script>
+    
+    <script>
+        // Initialize xterm.js
+        const term = new Terminal({
+            cursorBlink: true,
+            fontSize: 14,
+            fontFamily: '"Cascadia Code", "Fira Code", "Consolas", "Courier New", monospace',
+            theme: {
+                background: '#000000',
+                foreground: '#ffffff',
+                cursor: '#ffffff',
+                cursorAccent: '#000000',
+                selection: 'rgba(255, 255, 255, 0.3)',
+                black: '#000000',
+                red: '#ff5555',
+                green: '#50fa7b',
+                yellow: '#f1fa8c',
+                blue: '#bd93f9',
+                magenta: '#ff79c6',
+                cyan: '#8be9fd',
+                white: '#bbbbbb',
+                brightBlack: '#555555',
+                brightRed: '#ff5555',
+                brightGreen: '#50fa7b',
+                brightYellow: '#f1fa8c',
+                brightBlue: '#bd93f9',
+                brightMagenta: '#ff79c6',
+                brightCyan: '#8be9fd',
+                brightWhite: '#ffffff'
+            },
+            allowProposedApi: true
+        });
+        
+        // Initialize fit addon
+        const fitAddon = new FitAddon.FitAddon();
+        term.loadAddon(fitAddon);
+        
+        // Open terminal in container
+        term.open(document.getElementById('terminal'));
+        
+        // Initial fit
+        fitAddon.fit();
+        
+        // Handle window resize
+        window.addEventListener('resize', () => {
+            fitAddon.fit();
+        });
+        
+        // Status element
+        const statusElement = document.getElementById('status');
+        
+        // WebSocket connection
+        let socket = null;
+        let reconnectInterval = null;
+        
+        function updateStatus(status, text) {
+            statusElement.textContent = text;
+            statusElement.className = status;
+        }
+        
+        function connect() {
+            // Clear any existing reconnect interval
+            if (reconnectInterval) {
+                clearInterval(reconnectInterval);
+                reconnectInterval = null;
+            }
+            
+            // Determine WebSocket URL
+            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            const wsUrl = `${protocol}//${window.location.host}/ws`;
+            
+            try {
+                updateStatus('', 'Connecting...');
+                socket = new WebSocket(wsUrl);
+                
+                socket.onopen = () => {
+                    updateStatus('connected', 'Connected');
+                    term.focus();
+                    
+                    // Clear terminal and show welcome message
+                    term.clear();
+                    term.writeln('Welcome to Claude Phone Terminal!');
+                    term.writeln('');
+                };
+                
+                socket.onmessage = (event) => {
+                    // Write received data to terminal
+                    term.write(event.data);
+                };
+                
+                socket.onclose = () => {
+                    updateStatus('disconnected', 'Disconnected');
+                    term.writeln('\r\n\r\n[Connection closed. Attempting to reconnect...]');
+                    
+                    // Attempt to reconnect after 3 seconds
+                    reconnectInterval = setTimeout(connect, 3000);
+                };
+                
+                socket.onerror = (error) => {
+                    console.error('WebSocket error:', error);
+                    updateStatus('disconnected', 'Connection error');
+                };
+                
+            } catch (error) {
+                console.error('Failed to create WebSocket:', error);
+                updateStatus('disconnected', 'Failed to connect');
+                
+                // Retry connection after 3 seconds
+                reconnectInterval = setTimeout(connect, 3000);
+            }
+        }
+        
+        // Send terminal input to WebSocket
+        term.onData((data) => {
+            if (socket && socket.readyState === WebSocket.OPEN) {
+                socket.send(data);
+            }
+        });
+        
+        // Initial connection
+        connect();
+        
+        // Clean up on page unload
+        window.addEventListener('beforeunload', () => {
+            if (socket) {
+                socket.close();
+            }
+            if (reconnectInterval) {
+                clearInterval(reconnectInterval);
+            }
+        });
+    </script>
+</body>
+</html>
