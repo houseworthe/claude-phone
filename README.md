@@ -84,6 +84,114 @@ CP_PASSWORD=your_secure_password
 CLAUDE_PHONE_API_TOKEN=your_api_token_here
 ```
 
+### Using with a Private Repository
+
+Claude Phone can securely clone and work with your private Git repositories using SSH deploy keys. This feature ensures your code remains secure while giving Claude Phone the access it needs.
+
+#### Step 1: Generate an SSH Key Pair
+
+First, create a new SSH key specifically for this deployment:
+
+```bash
+# Generate a new SSH key (do not set a passphrase)
+ssh-keygen -t ed25519 -C "claude-phone-deploy" -f ~/.ssh/claude-phone-deploy
+
+# This creates two files:
+# - claude-phone-deploy (private key)
+# - claude-phone-deploy.pub (public key)
+```
+
+**Important:** When prompted for a passphrase, press Enter twice to create a key without a passphrase.
+
+#### Step 2: Add Deploy Key to Your Repository
+
+1. Copy the contents of the public key:
+   ```bash
+   cat ~/.ssh/claude-phone-deploy.pub
+   ```
+
+2. Go to your GitHub repository's settings:
+   - Navigate to `Settings` → `Deploy keys`
+   - Click `Add deploy key`
+   - Title: "Claude Phone Access"
+   - Key: Paste the public key contents
+   - Check "Allow write access" if Claude Phone needs to push changes
+   - Click `Add key`
+
+For other platforms:
+- **GitLab:** Settings → Repository → Deploy Keys
+- **Bitbucket:** Repository settings → Access keys
+
+#### Step 3: Configure Your Cloud Provider
+
+##### Railway
+
+1. In your Railway project dashboard:
+   - Go to your service settings
+   - Navigate to the "Variables" tab
+   - Add a new variable:
+     - Name: `GIT_REPO_URL`
+     - Value: `git@github.com:your-username/your-private-repo.git`
+   
+2. Add the private key as a secret:
+   - Railway doesn't directly support build secrets yet
+   - Use a build argument instead (see alternative method below)
+
+##### Render
+
+1. In your Render service dashboard:
+   - Go to "Environment" tab
+   - Add environment variable:
+     - Key: `GIT_REPO_URL`
+     - Value: `git@github.com:your-username/your-private-repo.git`
+
+2. Add the private key:
+   - Create a secret file named `git_ssh_key`
+   - Paste the contents of your private key file
+
+##### Alternative: Using Build Arguments
+
+If your platform doesn't support Docker BuildKit secrets, you can modify the build command:
+
+```bash
+# Read the private key and pass it as a build argument
+docker build \
+  --build-arg GIT_REPO_URL="git@github.com:your-username/your-private-repo.git" \
+  --secret id=git_ssh_key,src=~/.ssh/claude-phone-deploy \
+  -t claude-phone .
+```
+
+#### Step 4: Deploy with Docker BuildKit
+
+When building locally with Docker, use BuildKit to securely pass the SSH key:
+
+```bash
+# Enable BuildKit
+export DOCKER_BUILDKIT=1
+
+# Build with the secret
+docker build \
+  --build-arg GIT_REPO_URL="git@github.com:your-username/your-private-repo.git" \
+  --secret id=git_ssh_key,src=~/.ssh/claude-phone-deploy \
+  -t claude-phone .
+```
+
+#### Security Notes
+
+- **Never commit SSH keys to your repository**
+- The private key is only used during the build process
+- The multi-stage Dockerfile ensures the key is not present in the final image
+- Your repository is cloned to `/app/user_repo` inside the container
+- Each deployment should use a unique deploy key for audit trails
+
+#### Troubleshooting
+
+If the clone fails:
+1. Verify the SSH URL is correct (use `git@github.com:...` not `https://...`)
+2. Ensure the deploy key has read access to the repository
+3. Check that the private key file has correct permissions (`chmod 600`)
+4. Test the key locally: `ssh -i ~/.ssh/claude-phone-deploy -T git@github.com`
+
 ## Usage
 
 ### Terminal Interface
@@ -118,7 +226,6 @@ curl -X POST http://your-server:8000/execute \
   -H "Content-Type: application/json" \
   -d '{
     "prompt": "analyze the security of auth.py",
-    "repo_path": "/app/myproject",
     "args": "--yes"
   }'
 

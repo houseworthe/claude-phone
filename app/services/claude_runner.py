@@ -9,10 +9,13 @@ class ClaudeRunner:
     """
     A service to securely execute Claude Code CLI commands as an asynchronous subprocess.
     """
-    async def execute_command(self, prompt: str, repo_path: str, args: str | None):
+    async def execute_command(self, prompt: str, args: str | None):
         """
         Executes the claude command and yields its output line by line.
         """
+        # Fixed repository path from Docker build
+        repo_path = "/app/user_repo"
+        
         # Security: Construct the command carefully. We control the base command.
         # The prompt is passed as a string argument, mitigating injection risks.
         command = f'claude --prompt "{prompt}" {args if args else ""}'

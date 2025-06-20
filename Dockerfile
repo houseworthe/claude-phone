@@ -1,4 +1,34 @@
-# Use a Python base image that includes build tools
+# syntax=docker/dockerfile:1
+# Stage 1: Clone the private repository
+FROM python:3.11 as cloner
+
+# Install git and SSH client
+RUN apt-get update && apt-get install -y \
+    git \
+    openssh-client \
+    && rm -rf /var/lib/apt/lists/*
+
+# Accept build argument for the repository URL
+ARG GIT_REPO_URL
+
+# Set up SSH for cloning
+RUN mkdir -p /root/.ssh && \
+    ssh-keyscan -t rsa github.com >> /root/.ssh/known_hosts && \
+    ssh-keyscan -t rsa gitlab.com >> /root/.ssh/known_hosts && \
+    ssh-keyscan -t rsa bitbucket.org >> /root/.ssh/known_hosts
+
+WORKDIR /app
+
+# Clone the repository using the mounted secret SSH key
+# This requires Docker BuildKit and the secret to be passed during build
+RUN --mount=type=secret,id=git_ssh_key,mode=0600 \
+    mkdir -p /root/.ssh && \
+    cp /run/secrets/git_ssh_key /root/.ssh/id_rsa && \
+    chmod 600 /root/.ssh/id_rsa && \
+    git clone ${GIT_REPO_URL} /app/user_repo && \
+    rm -f /root/.ssh/id_rsa
+
+# Stage 2: Build the final image without the SSH key
 FROM python:3.11
 
 # Set working directory
@@ -33,6 +63,9 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY app app/
 COPY static static/
 
+# Copy the cloned repository from the first stage
+COPY --from=cloner /app/user_repo /app/user_repo
+
 # Create logs directory
 RUN mkdir -p logs
 
@@ -48,9 +81,6 @@ EXPOSE 8000
 
 # Set environment variables
 ENV PYTHONUNBUFFERED=1
-
-# Note: Health check removed as curl is not installed in slim image
-# Add it back if needed by installing curl in the apt-get section
 
 # Run the application
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]

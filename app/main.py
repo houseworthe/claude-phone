@@ -62,7 +62,7 @@ async def execute(
 
     async def stream_and_log():
         with open(LOG_FILE, "a") as log_file:
-            async for line in runner.execute_command(request.prompt, request.repo_path, request.args):
+            async for line in runner.execute_command(request.prompt, request.args):
                 log_file.write(line + "\n")
                 log_file.flush()
                 yield line + "\n"
