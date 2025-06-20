@@ -23,9 +23,6 @@ RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - && \
 # Install Claude Code CLI globally
 RUN npm install -g @anthropic-ai/claude-code
 
-# Clone the target repository that Claude Phone will operate on
-RUN git clone https://github.com/houseworthe/davis.git /app/davis
-
 # Copy requirements first for better caching
 COPY requirements.txt .
 
